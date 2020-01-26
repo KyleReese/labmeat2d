@@ -1,8 +1,10 @@
+import os, imageio
 import autograd.numpy as np
 import autograd.scipy.signal as sig
 from autograd import grad
 from autograd.builtins import tuple
 import matplotlib.pyplot as plt
+from natsort import natsorted
 
 HowManyCells = 51
 values = np.zeros((HowManyCells))
@@ -79,12 +81,25 @@ def fitness(moveablePts):
     values = np.zeros((HowManyCells))
     values = doPDE(values, moveablePts)
     return(values[10])
-    
-    
+
+def create_remove_imgs():
+    fig_folder = 'figs/'
+
+    if not os.path.exists(fig_folder):
+        os.makedirs(fig_folder)
+
+    if os.path.exists(fig_folder):
+        for img_file in os.listdir(fig_folder):
+            os.remove(fig_folder + img_file)
+
+def saveFigureImage(iteration):
+    fig.savefig('figs/' + str(iteration) + '.png', size=[1600,400])
+
 
 # print(doPDE(values, (25.99, 3.4)))
 # print(fitness((25.99, 3.4)))
 if __name__ == "__main__":
+    create_remove_imgs()
     allLoss = []
     stepSize = 0.1
 
@@ -95,7 +110,7 @@ if __name__ == "__main__":
     # ax_diffused_img = fig.add_subplot(154, frameon=True)
     # ax_loss_map     = fig.add_subplot(155, frameon=True)
 
-    def callback(mvable_pts, iter, nowLoss):
+    def callback(mvable_pts, iteration, nowLoss):
         global values
         # ==================================== #
         # ==== LOSS as a function of TIME ==== #
@@ -113,12 +128,13 @@ if __name__ == "__main__":
         
         ax_values.cla()
         ax_values.set_title('Values')
-        ax_loss.set_xlabel('position')
-        ax_loss.set_ylabel('value')
+        ax_values.set_xlabel('position')
+        ax_values.set_ylabel('value')
         ax_values.plot(values)
         # print('values', values)
 
         plt.draw()
+        saveFigureImage(iteration)
         plt.pause(0.001)
         return 3
 
@@ -126,7 +142,7 @@ if __name__ == "__main__":
     # print(gradPDE((25.99, 3.4)))
     mvable_pts = [3.4, 17.99]
 
-    for i in range(350):
+    for i in range(300):
         grad_pts = gradPDE(mvable_pts)
         print(grad_pts)
         mvable_pts = list(np.array(mvable_pts) + np.array(grad_pts)* stepSize)
@@ -135,3 +151,12 @@ if __name__ == "__main__":
         print('loss', newfitness)
         callback(mvable_pts, i, newfitness)
     #print(values)
+
+    def img_path_generator(path_to_img_dir):
+        for file_name in natsorted(os.listdir(path_to_img_dir), key=lambda y: y.lower()):
+            if file_name.endswith('.png'):
+                file_path = os.path.join(path_to_img_dir, file_name)
+                yield imageio.imread(file_path)
+
+    fig_folder = 'figs/'
+    imageio.mimsave('AutoDiff_Figs.gif', img_path_generator(fig_folder), fps=50)
