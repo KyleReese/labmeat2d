@@ -1,5 +1,6 @@
 import autograd.numpy as np
 import autograd.scipy.signal as sig
+import autograd.grad as grad
 
 
 HowManyCells = 50
@@ -63,5 +64,7 @@ def distToConc(distance):
     return 1 - distance
     
 
-print(doPDE(values))
-print(values)
+if __name__ == '__main__':
+    print(doPDE(values))
+    print(values)
+    grad_pde = grad(doPDE)
