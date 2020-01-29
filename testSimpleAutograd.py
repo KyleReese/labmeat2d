@@ -101,7 +101,9 @@ def saveFigureImage(iteration):
 if __name__ == "__main__":
     create_remove_imgs()
     allLoss = []
-    stepSize = 0.1
+    stepSize = 0.01
+    useAdam = True
+    saveGif = False
 
     fig = plt.figure(figsize=(16, 4), facecolor='white')
     ax_loss         = fig.add_subplot(151, frameon=True)
@@ -139,24 +141,40 @@ if __name__ == "__main__":
         return 3
 
     gradPDE = grad(fitness)
-    # print(gradPDE((25.99, 3.4)))
     mvable_pts = [3.4, 17.99]
+    if useAdam:
+        m = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
+        v = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
+        b1=0.9
+        b2=0.999
+        eps=10**-8
+    # print(gradPDE((25.99, 3.4)))
+    
 
-    for i in range(300):
+    for i in range(500):
         grad_pts = gradPDE(mvable_pts)
         print(grad_pts)
-        mvable_pts = list(np.array(mvable_pts) + np.array(grad_pts)* stepSize)
+        if useAdam:
+            m = (1 - b1) * np.array(grad_pts, dtype=np.float64)      + b1 * m  # First  moment estimate.
+            v = (1 - b2) * (np.array(grad_pts, dtype=np.float64)**2) + b2 * v  # Second moment estimate.
+            mhat = m / (1 - b1**(i + 1))    # Bias correction.
+            vhat = v / (1 - b2**(i + 1))
+
+            # mvable_pts = tuple(np.array(mvable_pts, dtype=np.float64) + np.array(grad_pts, dtype=np.float64))
+            mvable_pts = mvable_pts + stepSize * mhat / (np.sqrt(vhat) + eps)
+        else:
+            mvable_pts = list(np.array(mvable_pts) + np.array(grad_pts)* stepSize)
 
         newfitness = fitness(mvable_pts)
         print('loss', newfitness)
         callback(mvable_pts, i, newfitness)
     #print(values)
+    if saveGif:
+        def img_path_generator(path_to_img_dir):
+            for file_name in natsorted(os.listdir(path_to_img_dir), key=lambda y: y.lower()):
+                if file_name.endswith('.png'):
+                    file_path = os.path.join(path_to_img_dir, file_name)
+                    yield imageio.imread(file_path)
 
-    def img_path_generator(path_to_img_dir):
-        for file_name in natsorted(os.listdir(path_to_img_dir), key=lambda y: y.lower()):
-            if file_name.endswith('.png'):
-                file_path = os.path.join(path_to_img_dir, file_name)
-                yield imageio.imread(file_path)
-
-    fig_folder = 'figs/'
-    imageio.mimsave('AutoDiff_Figs.gif', img_path_generator(fig_folder), fps=50)
+        fig_folder = 'figs/'
+        imageio.mimsave('AutoDiff_Figs.gif', img_path_generator(fig_folder), fps=50)
