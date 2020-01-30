@@ -5,8 +5,9 @@ from autograd import grad
 from autograd.builtins import tuple
 import matplotlib.pyplot as plt
 from natsort import natsorted
+from autograd.misc.flatten import flatten
 
-HowManyCells = 11
+HowManyCells = 20
 values = np.zeros((HowManyCells, HowManyCells))
 
 def doPDE(values, movablePts, nonLinear=True):
@@ -14,10 +15,16 @@ def doPDE(values, movablePts, nonLinear=True):
     D = 0.1# diffusion parameter
     if nonLinear:
         # Update the values based on diffusion of the proteins to nearby cells
-        xPoints = movablePts[:,0]
-        yPoints = movablePts[:,1]
-        xIntPoints = {int(x) for x in xPoints}
-        yIntPoints = {int(y) for y in yPoints}
+        try:
+            xPoints = movablePts[:,0]
+            yPoints = movablePts[:,1]
+            xIntPoints = {int(x) for x in xPoints}
+            yIntPoints = {int(y) for y in yPoints}
+        except:
+            xPoints = movablePts._value[:,0]
+            yPoints = movablePts._value[:,1]
+            xIntPoints = {int(x) for x in xPoints}
+            yIntPoints = {int(y) for y in yPoints}
         adjustmentPDEX = D * nonLinearAdjustment(xPoints)
         adjustmentPDEY = D * nonLinearAdjustment(yPoints)
 
@@ -116,9 +123,9 @@ def distToConc(distance):
     
 def fitness(moveablePts):
     global values
-    values = np.zeros((HowManyCells))
+    values = np.zeros((HowManyCells, HowManyCells))
     values = doPDE(values, moveablePts)
-    return(values[10])
+    return(values[10][10])
 
 def create_remove_imgs():
     fig_folder = 'figs/'
@@ -137,14 +144,14 @@ def saveFigureImage(iteration):
 # print(doPDE(values, (25.99, 3.4)))
 # print(fitness((25.99, 3.4)))
 if __name__ == "__main__":
-    result = doPDE(values, np.array([[5.5,5.5]]))
-    fig = plt.figure(figsize=(16, 4), facecolor='white')
-    ax_values       = fig.add_subplot(152, frameon=True)
-    ax_values.imshow(result)
-    plt.draw()
-    plt.pause(10)
-    print(result)
-    quit()
+    # result = doPDE(values, np.array([[5.5,5.5]]))
+    # fig = plt.figure(figsize=(16, 4), facecolor='white')
+    # ax_values       = fig.add_subplot(152, frameon=True)
+    # ax_values.imshow(result)
+    # plt.draw()
+    # plt.pause(10)
+    # print(result)
+    # quit()
     create_remove_imgs()
     allLoss = []
     stepSize = 0.01
@@ -178,7 +185,7 @@ if __name__ == "__main__":
         ax_values.set_title('Values')
         ax_values.set_xlabel('position')
         ax_values.set_ylabel('value')
-        ax_values.plot(values)
+        ax_values.imshow(values)
         # print('values', values)
 
         plt.draw()
@@ -187,7 +194,7 @@ if __name__ == "__main__":
         return 3
 
     gradPDE = grad(fitness)
-    mvable_pts = [3.4, 17.99]
+    mvable_pts = np.array([[10.4, 8.99],[2.3,6.8]])
     if useAdam:
         m = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
         v = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
@@ -212,7 +219,7 @@ if __name__ == "__main__":
             mvable_pts = list(np.array(mvable_pts) + np.array(grad_pts)* stepSize)
 
         newfitness = fitness(mvable_pts)
-        print('loss', newfitness)
+        print('fitness', newfitness)
         callback(mvable_pts, i, newfitness)
     #print(values)
     if saveGif:
