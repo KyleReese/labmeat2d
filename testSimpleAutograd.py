@@ -6,25 +6,66 @@ from autograd.builtins import tuple
 import matplotlib.pyplot as plt
 from natsort import natsorted
 
-HowManyCells = 51
-values = np.zeros((HowManyCells))
+HowManyCells = 11
+values = np.zeros((HowManyCells, HowManyCells))
 # values[HowManyCells//2] = 10
-def doPDE(values, movablePts):
+def doPDE(values, movablePts, nonLinear=True):
     #movablePts = list(movablePts)
-    # Update the values based on diffusion of the proteins to nearby cells
-    D = 0.1#get the diffusion parameter
-    adjustmentPDE = D * nonLinearAdjustment(movablePts)
+    valuesT = np.transpose(values) 
+    D = 0.1# diffusion parameter
+    if nonLinear:
+        # Update the values based on diffusion of the proteins to nearby cells
+        xPoints = movablePts[:,0]
+        yPoints = movablePts[:,1]
+        xIntPoints = {int(x) for x in xPoints}
+        yIntPoints = {int(y) for y in yPoints}
+        adjustmentPDEX = D * nonLinearAdjustment(xPoints)
+        adjustmentPDEY = D * nonLinearAdjustment(yPoints)
     #print(nonLinearAdjustment(movablePts))
     #simple diffusion is just a convolution
     convolveLinear = np.array([1*D,-2*D,1*D]) 
     # accumulate the changes due to diffusion 
     for rep in range(0, 50):
+        # print(rep)
         #linear diffusion
-        values =  values + sig.convolve(values, convolveLinear)[1:-1] #take off first and last
-        # non-linear diffusion, add the adjustment
-        values = values + np.multiply(values, adjustmentPDE)
+        newValuesX = []
+        newValuesY = []
+        # for row in values:
+        #     row =  row + sig.convolve(row, convolveLinear)[1:-1] #take off first and last
+        #     # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
+        #     if nonLinear:
+        #         # non-linear diffusion, add the adjustment
+        #         row = row + np.multiply(row, adjustmentPDEX)
+        #     newValues.append(row)
+        for i in range(HowManyCells):
+            # print(values[i])
+            row =  values[i] + sig.convolve(values[i], convolveLinear)[1:-1] #take off first and last
+            rowY =  valuesT[i] + sig.convolve(valuesT[i], convolveLinear)[1:-1] #take off first and last
+            # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
+            if nonLinear:
+                # non-linear diffusion, add the adjustment
+                if i in xIntPoints:
+                    row = row + np.multiply(row, adjustmentPDEX)
+                if i in yIntPoints:
+                    rowY = rowY + np.multiply(rowY, adjustmentPDEY)
+            newValuesX.append(row)
+            newValuesY.append(rowY)
+        
+        # for j in range(HowManyCells):
+        #     newRowT =  valuesT[j] + sig.convolve(valuesT[j], convolveLinear)[1:-1] #take off first and last
+        #     # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
+        #     if nonLinear:
+        #         # non-linear diffusion, add the adjustment
+        #         if j in yIntPoints:
+        #             newRowT = newRowT + np.multiply(newRowT, adjustmentPDEY)
+        #     newValuesT.append(newRowT)
+        #Add the transposed values
+        values = np.array(newValuesX) + np.array(newValuesY).T
         # add source at each iteration
-        values = values + addSources(movablePts)
+        # values = values + addSources(movablePts)
+        values[5][5] += 1
+        #Update transposed values
+        valuesT = values.T
     # the total update returned is the difference between the original values and the values after diffusion
     return values
     
@@ -99,6 +140,14 @@ def saveFigureImage(iteration):
 # print(doPDE(values, (25.99, 3.4)))
 # print(fitness((25.99, 3.4)))
 if __name__ == "__main__":
+    result = doPDE(values, np.array([[5.1,5.5]]))
+    fig = plt.figure(figsize=(16, 4), facecolor='white')
+    ax_values       = fig.add_subplot(152, frameon=True)
+    ax_values.imshow(result)
+    plt.draw()
+    plt.pause(10)
+    print(result)
+    quit()
     create_remove_imgs()
     allLoss = []
     stepSize = 0.01
