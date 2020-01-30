@@ -2,7 +2,7 @@ import os, imageio
 import autograd.numpy as np
 import autograd.scipy.signal as sig
 from autograd import grad
-from autograd.builtins import tuple
+from autograd.builtins import tuple, list, dict
 import matplotlib.pyplot as plt
 from natsort import natsorted
 from autograd.misc.flatten import flatten
@@ -10,25 +10,26 @@ from autograd.misc.flatten import flatten
 HowManyCells = 20
 values = np.zeros((HowManyCells, HowManyCells))
 
-def doPDE(values, movablePts, nonLinear=True):
+def doPDE(values, movablePts):
     valuesT = np.transpose(values) 
     D = 0.1# diffusion parameter
-    if nonLinear:
-        # Update the values based on diffusion of the proteins to nearby cells
-        try:
-            xPoints = movablePts[:,0]
-            yPoints = movablePts[:,1]
-            xIntPoints = {int(x) for x in xPoints}
-            yIntPoints = {int(y) for y in yPoints}
-        except:
-            xPoints = movablePts._value[:,0]
-            yPoints = movablePts._value[:,1]
-            xIntPoints = {int(x) for x in xPoints}
-            yIntPoints = {int(y) for y in yPoints}
-        adjustmentPDEX = D * nonLinearAdjustment(xPoints)
-        adjustmentPDEY = D * nonLinearAdjustment(yPoints)
+    # Update the values based on diffusion of the proteins to nearby cells
+    try:
+        xPoints = movablePts[0::2]#movablePts[:,0]
+        yPoints = movablePts[1::2]#[:,1]
+    except:
+        xPoints = movablePts._value[0::2]#[:,0]
+        yPoints = movablePts._value[1::2]#[:,1]
+    try:
+        xIntPoints = list([int(x) for x in xPoints])
+        yIntPoints = list([int(y) for y in yPoints])
+    except:
+        xIntPoints = list([int(x) for x in xPoints._value])
+        yIntPoints = list([int(y) for y in yPoints._value])
+    adjustmentPDEX = D * nonLinearAdjustment(xPoints)
+    adjustmentPDEY = D * nonLinearAdjustment(yPoints)
 
-    sources = addSources2D(movablePts) #sources stay the same for the simulation
+    # sources = addSources2D(movablePts) #sources stay the same for the simulation
     #simple diffusion is just a convolution
     convolveLinear = np.array([1*D,-2*D,1*D]) 
     # accumulate the changes due to diffusion 
@@ -39,24 +40,38 @@ def doPDE(values, movablePts, nonLinear=True):
         for i in range(HowManyCells):
             row =  values[i] + sig.convolve(values[i], convolveLinear)[1:-1] #take off first and last
             rowY =  valuesT[i] + sig.convolve(valuesT[i], convolveLinear)[1:-1] #take off first and last
-            if nonLinear:
-                # non-linear diffusion, add the adjustment
-                if i in xIntPoints:
-                    row = row + np.multiply(row, adjustmentPDEX)
-                if i in yIntPoints:
-                    rowY = rowY + np.multiply(rowY, adjustmentPDEY)
+            # non-linear diffusion, add the adjustment
+            if i in xIntPoints:
+                row = row + np.multiply(row, adjustmentPDEX)
+            if i in yIntPoints:
+                rowY = rowY + np.multiply(rowY, adjustmentPDEY)
             newValuesX.append(row)
             newValuesY.append(rowY)
         
         #Merge rows and transposed columns
         values = np.array(newValuesX) + np.array(newValuesY).T
         # add source at each iteration
-        values = values + sources
+        values = values + addSources3(xPoints, yPoints)
         # values[5][5] += 1
         #Update transposed values
         valuesT = values.T
     # the total update returned is the difference between the original values and the values after diffusion
     return values
+
+def addSources3(xPoints, yPoints):
+    sources = np.zeros((HowManyCells, HowManyCells))
+    for i in range(len(xPoints)):
+        try:
+            xIndex = int(xPoints[i])
+            yIndex = int(yPoints[i])
+        except:
+            xIndex = int(xPoints._value[i])
+            yIndex = int(yPoints._value[i])
+        one = [x[:] for x in [[0] * HowManyCells] * HowManyCells]
+        one[xIndex][yIndex] = 1
+        sources = np.array(one) + sources
+    return sources 
+
 def addSources2D(moveablePts):
     sources = np.zeros((HowManyCells, HowManyCells))
     for point in moveablePts:
@@ -194,7 +209,7 @@ if __name__ == "__main__":
         return 3
 
     gradPDE = grad(fitness)
-    mvable_pts = np.array([[10.4, 8.99],[2.3,6.8]])
+    mvable_pts = list([10.4, 8.99,2.3,6.8])
     if useAdam:
         m = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
         v = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
