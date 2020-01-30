@@ -1,11 +1,10 @@
 import autograd.numpy as np
 import autograd.scipy.signal as sig
-import autograd.grad as grad
 
 
 HowManyCells = 50
 values = np.zeros((HowManyCells))
-values[HowManyCells//2] = 10
+values[HowManyCells//2] = 1
 def doPDE(values, movablePts = [HowManyCells/2+0.1]):
     # Update the values based on diffusion of the proteins to nearby cells
     values = values.T # by protein rather than cell

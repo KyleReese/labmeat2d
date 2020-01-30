@@ -21,10 +21,11 @@ def doPDE(values, movablePts, nonLinear=True):
         adjustmentPDEX = D * nonLinearAdjustment(xPoints)
         adjustmentPDEY = D * nonLinearAdjustment(yPoints)
 
+    sources = addSources2D(movablePts) #sources stay the same for the simulation
     #simple diffusion is just a convolution
     convolveLinear = np.array([1*D,-2*D,1*D]) 
     # accumulate the changes due to diffusion 
-    for rep in range(0, 50):
+    for rep in range(50):
         # print(rep)
         newValuesX = []
         newValuesY = []
@@ -43,13 +44,28 @@ def doPDE(values, movablePts, nonLinear=True):
         #Merge rows and transposed columns
         values = np.array(newValuesX) + np.array(newValuesY).T
         # add source at each iteration
-        # values = values + addSources(movablePts)
-        values[5][5] += 1
+        values = values + sources
+        # values[5][5] += 1
         #Update transposed values
         valuesT = values.T
     # the total update returned is the difference between the original values and the values after diffusion
     return values
-    
+def addSources2D(moveablePts):
+    sources = np.zeros((HowManyCells, HowManyCells))
+    for point in moveablePts:
+        try:
+            xIndex = int(point[0])
+        except:
+            xIndex = int(point._value[0])
+        try:
+            yIndex = int(point[1])
+        except:
+            yIndex = int(point._value[1])
+        one = [x[:] for x in [[0] * HowManyCells] * HowManyCells]
+        one[xIndex][yIndex] = 1
+        sources = np.array(one) + sources
+    return sources
+
 def addSources(moveablePts):
     sources = np.zeros((HowManyCells))
     for x in moveablePts:
@@ -121,7 +137,7 @@ def saveFigureImage(iteration):
 # print(doPDE(values, (25.99, 3.4)))
 # print(fitness((25.99, 3.4)))
 if __name__ == "__main__":
-    result = doPDE(values, np.array([[5.1,5.5]]))
+    result = doPDE(values, np.array([[5.5,5.5]]))
     fig = plt.figure(figsize=(16, 4), facecolor='white')
     ax_values       = fig.add_subplot(152, frameon=True)
     ax_values.imshow(result)
