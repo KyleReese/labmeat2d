@@ -8,9 +8,8 @@ from natsort import natsorted
 
 HowManyCells = 11
 values = np.zeros((HowManyCells, HowManyCells))
-# values[HowManyCells//2] = 10
+
 def doPDE(values, movablePts, nonLinear=True):
-    #movablePts = list(movablePts)
     valuesT = np.transpose(values) 
     D = 0.1# diffusion parameter
     if nonLinear:
@@ -21,27 +20,17 @@ def doPDE(values, movablePts, nonLinear=True):
         yIntPoints = {int(y) for y in yPoints}
         adjustmentPDEX = D * nonLinearAdjustment(xPoints)
         adjustmentPDEY = D * nonLinearAdjustment(yPoints)
-    #print(nonLinearAdjustment(movablePts))
+
     #simple diffusion is just a convolution
     convolveLinear = np.array([1*D,-2*D,1*D]) 
     # accumulate the changes due to diffusion 
     for rep in range(0, 50):
         # print(rep)
-        #linear diffusion
         newValuesX = []
         newValuesY = []
-        # for row in values:
-        #     row =  row + sig.convolve(row, convolveLinear)[1:-1] #take off first and last
-        #     # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
-        #     if nonLinear:
-        #         # non-linear diffusion, add the adjustment
-        #         row = row + np.multiply(row, adjustmentPDEX)
-        #     newValues.append(row)
         for i in range(HowManyCells):
-            # print(values[i])
             row =  values[i] + sig.convolve(values[i], convolveLinear)[1:-1] #take off first and last
             rowY =  valuesT[i] + sig.convolve(valuesT[i], convolveLinear)[1:-1] #take off first and last
-            # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
             if nonLinear:
                 # non-linear diffusion, add the adjustment
                 if i in xIntPoints:
@@ -51,15 +40,7 @@ def doPDE(values, movablePts, nonLinear=True):
             newValuesX.append(row)
             newValuesY.append(rowY)
         
-        # for j in range(HowManyCells):
-        #     newRowT =  valuesT[j] + sig.convolve(valuesT[j], convolveLinear)[1:-1] #take off first and last
-        #     # valuesT =  valuesT + sig.convolve(valuesT, convolveLinear)[1:-1] #take off first and last
-        #     if nonLinear:
-        #         # non-linear diffusion, add the adjustment
-        #         if j in yIntPoints:
-        #             newRowT = newRowT + np.multiply(newRowT, adjustmentPDEY)
-        #     newValuesT.append(newRowT)
-        #Add the transposed values
+        #Merge rows and transposed columns
         values = np.array(newValuesX) + np.array(newValuesY).T
         # add source at each iteration
         # values = values + addSources(movablePts)
