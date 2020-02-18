@@ -8,35 +8,54 @@ from natsort import natsorted
 from autograd.misc.flatten import flatten
 
 HowManyCells = 20
-values = np.zeros((HowManyCells, HowManyCells))
 
-def doPDE(values, movablePts):
-    valuesT = np.transpose(values) 
-    D = 0.1# diffusion parameter
+def hillPlus(x, k):
+    return x / (x + k)
+
+def hillMinus(x, k):
+    return np.power(k+x, -1)
+
+def deltaProduct(x, n, k):
+    return -1.0 * hillPlus(x, k) + hillPlus(n,k) * hillMinus(x, k)
+
+def deltaNutrient(x, n, k):
+    return -1.0 * hillPlus(n,k) * hillMinus(x, k) + hillMinus(n, k)
+
+def doODE(nutrient_values, product_values, movablePts, xPoints, yPoints, xIntPoints, yIntPoints):
+    k = 0.01
+    product_result = list([])
+    nutrient_result = list([])
+    for ix in range(HowManyCells):
+        product_result_row = list([])
+        nutrient_result_row = list([])
+        for iy in range(HowManyCells):
+            x = product_values[ix][iy]
+            n = nutrient_values[ix][iy]
+            dx = deltaProduct(x,n,k)
+            dn = deltaNutrient(x,n,k)
+            product_result_row.append(dx)
+            nutrient_result_row.append(dn)
+        product_result.append(product_result_row)
+        nutrient_result.append(nutrient_result_row)
+
+    return (np.array(product_result), np.array(nutrient_result))
+        
+
+
+def doPDE(values, movablePts, xPoints, yPoints, xIntPoints, yIntPoints):
     # Update the values based on diffusion of the proteins to nearby cells
-    try:
-        xPoints = movablePts[0::2]#movablePts[:,0]
-        yPoints = movablePts[1::2]#[:,1]
-    except:
-        xPoints = movablePts._value[0::2]#[:,0]
-        yPoints = movablePts._value[1::2]#[:,1]
-    try:
-        xIntPoints = list([int(x) for x in xPoints])
-        yIntPoints = list([int(y) for y in yPoints])
-    except:
-        xIntPoints = list([int(x) for x in xPoints._value])
-        yIntPoints = list([int(y) for y in yPoints._value])
+    D = 0.1 # diffusion parameter
+    valuesT = np.transpose(values) 
     adjustmentPDEX = D * nonLinearAdjustment(xPoints)
     adjustmentPDEY = D * nonLinearAdjustment(yPoints)
 
-    # sources = addSources2D(movablePts) #sources stay the same for the simulation
     #simple diffusion is just a convolution
     convolveLinear = np.array([1*D,-2*D,1*D]) 
     # accumulate the changes due to diffusion 
     for rep in range(50):
         # print(rep)
-        newValuesX = []
-        newValuesY = []
+        newValuesX = list([])
+        newValuesY = list([])
         for i in range(HowManyCells):
             row =  values[i] + sig.convolve(values[i], convolveLinear)[1:-1] #take off first and last
             rowY =  valuesT[i] + sig.convolve(valuesT[i], convolveLinear)[1:-1] #take off first and last
@@ -52,7 +71,6 @@ def doPDE(values, movablePts):
         values = np.array(newValuesX) + np.array(newValuesY).T
         # add source at each iteration
         values = values + addSources3(xPoints, yPoints)
-        # values[5][5] += 1
         #Update transposed values
         valuesT = values.T
     # the total update returned is the difference between the original values and the values after diffusion
@@ -107,8 +125,6 @@ def nonLinearAdjustment(movablePts):
     # adjustment is constant for each simulation, because the points do
     # not move so compute once
     allAdjustment = np.zeros(HowManyCells)
-    # print("points")
-    # print(movablePts)
     for x in list(movablePts): #only single numbers in x one D
         try:
             pointI = int(x)
@@ -126,7 +142,6 @@ def nonLinearAdjustment(movablePts):
             # Otherwise no adjustment   
             else:
                 thisAdj.append(0) 
-        #print(thisAdj)
         #accumulate this movable point into the total adjustment 
         allAdjustment = allAdjustment + np.array(thisAdj)
     return allAdjustment
@@ -137,10 +152,33 @@ def distToConc(distance):
     return 1 - distance
     
 def fitness(moveablePts):
-    global values
-    values = np.zeros((HowManyCells, HowManyCells))
-    values = doPDE(values, moveablePts)
-    return(values[10][10])
+    global nutrient_values, product_values
+
+    try:
+        xPoints = moveablePts[0::2] #get x points np array view from flat list
+        yPoints = moveablePts[1::2] #get y points np array view from flat list
+    except:
+        xPoints = moveablePts._value[0::2]
+        yPoints = moveablePts._value[1::2]
+    try:
+        xIntPoints = list([int(x) for x in xPoints])
+        yIntPoints = list([int(y) for y in yPoints])
+    except:
+        xIntPoints = list([int(x) for x in xPoints._value])
+        yIntPoints = list([int(y) for y in yPoints._value])
+
+    nutrient_values = np.zeros((HowManyCells, HowManyCells))
+    product_values = np.zeros((HowManyCells, HowManyCells))
+
+    nutrient_values = doPDE(nutrient_values, moveablePts, xPoints, yPoints, xIntPoints, yIntPoints)
+    product_values = doPDE(product_values, moveablePts, xPoints, yPoints, xIntPoints, yIntPoints)
+
+    odeResult = doODE(nutrient_values, product_values, moveablePts, xPoints, yPoints, xIntPoints, yIntPoints)
+    nutrient_values += odeResult[0]
+    product_values += odeResult[1]
+    nutrient_values.clip(min=0)  #put all negative values to 0
+    product_values.clip(min=0)
+    return(nutrient_values[10][10])
 
 def create_remove_imgs():
     fig_folder = 'figs/'
@@ -181,7 +219,7 @@ if __name__ == "__main__":
     # ax_loss_map     = fig.add_subplot(155, frameon=True)
 
     def callback(mvable_pts, iteration, nowLoss):
-        global values
+        global nutrient_values, product_values
         # ==================================== #
         # ==== LOSS as a function of TIME ==== #
         # ==================================== #
@@ -194,13 +232,13 @@ if __name__ == "__main__":
         ax_loss.plot(time, allLoss, '-', linestyle = 'solid', label='fitness') #, color = colors[i]
         ax_loss.set_xlim(time.min(), time.max())
         ax_loss.legend(loc = 'upper left')
-        # print('moveable points:', mvable_pts)
+        print('moveable points:', mvable_pts)
         
         ax_values.cla()
         ax_values.set_title('Values')
         ax_values.set_xlabel('position')
         ax_values.set_ylabel('value')
-        ax_values.imshow(values)
+        ax_values.imshow(nutrient_values)
         # print('values', values)
 
         plt.draw()
@@ -209,7 +247,7 @@ if __name__ == "__main__":
         return 3
 
     gradPDE = grad(fitness)
-    mvable_pts = list([10.4, 8.99,2.3,6.8])
+    mvable_pts = list([12.4, 14.99,5.3,6.8]) #flat list for autograd but points are (x,y) (x,y)
     if useAdam:
         m = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
         v = np.zeros(np.array(mvable_pts).shape, dtype=np.float64)
