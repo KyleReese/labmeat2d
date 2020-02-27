@@ -128,3 +128,4 @@ dmypy.json
 figs/
 AutoDiff_Figs.gif
 .vscode/
+tmp.txt
