@@ -15,24 +15,33 @@ def hillPlus(x, k):
 def hillMinus(x, k):
     return np.power(k+x, -1)
 
-def deltaProduct(x, n, k):
-    return -1.0 * hillPlus(x, k) + hillPlus(n,k) * hillMinus(x, k)
+def deltaProduct(x, n, k, isVessel):
+    vessalAdjustment = 0
+    if isVessel:
+        vessalAdjustment = hillPlus(n,k) * hillMinus(x, k)
+    return -1.0 * hillPlus(x, k) + vessalAdjustment
 
-def deltaNutrient(x, n, k):
-    return -1.0 * hillPlus(n,k) * hillMinus(x, k) + hillMinus(n, k)
+def deltaNutrient(x, n, k, isVessel):
+    vessalAdjustment = 0
+    if isVessel:
+        vessalAdjustment = hillPlus(n,k) * hillMinus(x, k)
+    return -1.0 * hillMinus(n, k) + vessalAdjustment
 
 def doODE(nutrient_values, product_values, movablePts, xPoints, yPoints, xIntPoints, yIntPoints):
     k = 0.01
     product_result = list([])
     nutrient_result = list([])
-    for ix in range(HowManyCells):
+    for iy in range(HowManyCells):
         product_result_row = list([])
         nutrient_result_row = list([])
-        for iy in range(HowManyCells):
+        for ix in range(HowManyCells):
+            isVessel = False
+            if ix == xIntPoints[0] and iy == yIntPoints[0]:
+                isVessel = True
             x = product_values[ix][iy]
             n = nutrient_values[ix][iy]
-            dx = deltaProduct(x,n,k)
-            dn = deltaNutrient(x,n,k)
+            dx = deltaProduct(x,n,k, isVessel)
+            dn = deltaNutrient(x,n,k, isVessel)
             product_result_row.append(dx)
             nutrient_result_row.append(dn)
         product_result.append(product_result_row)
@@ -176,8 +185,8 @@ def fitness(moveablePts):
     odeResult = doODE(nutrient_values, product_values, moveablePts, xPoints, yPoints, xIntPoints, yIntPoints)
     nutrient_values += odeResult[0]
     product_values += odeResult[1]
-    nutrient_values.clip(min=0)  #put all negative values to 0
-    product_values.clip(min=0)
+    # nutrient_values.clip(min=0)  #put all negative values to 0
+    # product_values.clip(min=0)
     return(nutrient_values[10][10])
 
 def create_remove_imgs():
@@ -214,7 +223,7 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(16, 4), facecolor='white')
     ax_loss         = fig.add_subplot(151, frameon=True)
     ax_values       = fig.add_subplot(152, frameon=True)
-    # ax_img          = fig.add_subplot(153, frameon=True)
+    ax_product      = fig.add_subplot(153, frameon=True)
     # ax_diffused_img = fig.add_subplot(154, frameon=True)
     # ax_loss_map     = fig.add_subplot(155, frameon=True)
 
@@ -235,11 +244,16 @@ if __name__ == "__main__":
         print('moveable points:', mvable_pts)
         
         ax_values.cla()
-        ax_values.set_title('Values')
+        ax_values.set_title('Nutrient')
         ax_values.set_xlabel('position')
         ax_values.set_ylabel('value')
         ax_values.imshow(nutrient_values)
-        # print('values', values)
+        
+        ax_product.cla()
+        ax_product.set_title('Product')
+        ax_product.set_xlabel('position')
+        ax_product.set_ylabel('value')
+        ax_product.imshow(product_values)
 
         plt.draw()
         saveFigureImage(iteration)
